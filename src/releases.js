@@ -1,3 +1,4 @@
+import Oktokit from '@octokit/rest'
 import semver from 'semver'
 import { niceDate } from './utils'
 
@@ -5,10 +6,19 @@ const MERGE_COMMIT_PATTERN = /^Merge (remote-tracking )?branch '.+'/
 const COMMIT_MESSAGE_PATTERN = /\n+([\S\s]+)/
 const NUMERIC_PATTERN = /^\d+(\.\d+)?$/
 
-export function parseReleases (commits, remote, latestVersion, options) {
+export async function parseReleases (commits, remote, latestVersion, options) {
   let release = newRelease(latestVersion)
   const releases = []
   const sortCommits = commitSorter(options)
+  const filterByGithubLabel = options.mergeGithubLabel && /github/.test(remote.hostname)
+  let githubIssues = []
+
+  if (filterByGithubLabel) {
+    const { owner, repo } = remote
+    const oktokit = new Oktokit
+    githubIssues = await octokit.paginate('GET /repos/:owner/:repo/issues', { owner, repo })
+  }
+
   for (let commit of commits) {
     if (commit.tag) {
       if (release.tag || options.unreleased) {
@@ -26,7 +36,14 @@ export function parseReleases (commits, remote, latestVersion, options) {
       const summary = getSummary(commit.message, options.releaseSummary)
       release = newRelease(commit.tag, commit.date, summary)
     }
+
     if (commit.merge) {
+      if (filterByGithubLabel) {
+        const issue = githubIssues.find(issue => issue.number === commit.merge.id)
+        if (!issue) continue
+        if (!issue.labels.map(label => label.name).contains(options.mergeGithubLabel)) continue
+      }
+
       release.merges.push(commit.merge)
     } else if (commit.fixes) {
       release.fixes.push({

@@ -36,8 +36,12 @@ export async function fetchRemote (name) {
     }
   }
 
+  const { owner, repo } = remote
+
   return {
     hostname,
+    owner,
+    repo,
     url: `${protocol}//${hostname}/${remote.repo}`
   }
 }
