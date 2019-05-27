@@ -1,4 +1,4 @@
-import Oktokit from '@octokit/rest'
+import Octokit from '@octokit/rest'
 import semver from 'semver'
 import { niceDate } from './utils'
 
@@ -14,9 +14,10 @@ export async function parseReleases (commits, remote, latestVersion, options) {
   let githubIssues = []
 
   if (filterByGithubLabel) {
-    const { owner, repo } = remote
-    const oktokit = new Oktokit
-    githubIssues = await octokit.paginate('GET /repos/:owner/:repo/issues', { owner, repo })
+    const [ owner, repo ] = remote.repo.split('/')
+    const octokit = new Octokit({ auth: process.env.AUTO_CHANGELOG_GITHUB_TOKEN })
+    const options = octokit.issues.listForRepo.endpoint.merge({ owner, repo, state: 'all' })
+    githubIssues = await octokit.paginate(options)
   }
 
   for (let commit of commits) {
@@ -39,9 +40,9 @@ export async function parseReleases (commits, remote, latestVersion, options) {
 
     if (commit.merge) {
       if (filterByGithubLabel) {
-        const issue = githubIssues.find(issue => issue.number === commit.merge.id)
+        const issue = githubIssues.find(issue => issue.number == commit.merge.id)
         if (!issue) continue
-        if (!issue.labels.map(label => label.name).contains(options.mergeGithubLabel)) continue
+        if (!issue.labels.map(label => label.name).includes(options.mergeGithubLabel)) continue
       }
 
       release.merges.push(commit.merge)
